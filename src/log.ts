@@ -1,74 +1,99 @@
-export type LogCategory = 'sim' | 'render' | 'feel' | 'audio' | 'meta' | 'platform' | 'ui'
-
-const CATEGORIES: LogCategory[] = ['sim', 'render', 'feel', 'audio', 'meta', 'platform', 'ui']
-
-interface DebugState {
-  enabled: boolean
-  categories: Set<LogCategory>
+export interface Logger<C extends string> {
+  log(category: C, build: () => string): void
+  isDebug(): boolean
+  setDebug(enabled: boolean): void
+  createPerfHud(): PerfHud
 }
 
-function readInitialState(): DebugState {
+/** Frame-time / draw-call readout, only mounted when debugging. */
+export interface PerfHud {
+  sample(dtMs: number, extra: () => string): void
+}
+
+export interface LoggerOptions {
+  /** URL parameter that enables logging. Default 'debug'. */
+  debugParam?: string
+  /** URL parameter that narrows to a category list. Default 'logcat'. */
+  categoryParam?: string
+}
+
+interface DebugState<C extends string> {
+  enabled: boolean
+  active: Set<C>
+}
+
+function readInitialState<C extends string>(
+  categories: readonly C[],
+  debugParam: string,
+  categoryParam: string,
+): DebugState<C> {
   let enabled = false
-  let categories = new Set(CATEGORIES)
+  let active = new Set(categories)
   try {
     const params = new URLSearchParams(location.search)
-    const flag = params.get('debug')
+    const flag = params.get(debugParam)
     enabled = flag !== null && flag !== '0' && flag !== 'false'
-    const only = params.get('logcat')
+    const only = params.get(categoryParam)
     if (only) {
-      const wanted = only.split(',').map((s) => s.trim()) as LogCategory[]
-      categories = new Set(wanted.filter((c) => CATEGORIES.includes(c)))
+      const known = new Set<string>(categories)
+      const wanted = only.split(',').map((s) => s.trim())
+      active = new Set(wanted.filter((c) => known.has(c)) as C[])
     }
   } catch {
     // Non-browser context (tests); stay quiet.
   }
-  return { enabled, categories }
+  return { enabled, active }
 }
 
-const state: DebugState = readInitialState()
+export function createLogger<const C extends string>(
+  categories: readonly C[],
+  options?: LoggerOptions,
+): Logger<C> {
+  const debugParam = options?.debugParam ?? 'debug'
+  const categoryParam = options?.categoryParam ?? 'logcat'
+  const state = readInitialState(categories, debugParam, categoryParam)
 
-/** Gated before the message is built, so calls cost nothing when disabled. */
-export function log(category: LogCategory, build: () => string): void {
-  if (!state.enabled || !state.categories.has(category)) return
-  // eslint-disable-next-line no-console
-  console.log(`[${category}] ${build()}`)
-}
+  /** Gated before the message is built, so calls cost nothing when disabled. */
+  function log(category: C, build: () => string): void {
+    if (!state.enabled || !state.active.has(category)) return
+    console.log(`[${category}] ${build()}`)
+  }
 
-export function isDebug(): boolean {
-  return state.enabled
-}
+  function isDebug(): boolean {
+    return state.enabled
+  }
 
-export function setDebug(enabled: boolean): void {
-  state.enabled = enabled
-}
+  function setDebug(enabled: boolean): void {
+    state.enabled = enabled
+  }
 
-/** Frame-time / draw-call readout, only mounted when debugging. */
-export class PerfHud {
-  private readonly el: HTMLDivElement | null
-  private frames = 0
-  private acc = 0
-  private worst = 0
-
-  constructor() {
+  /**
+   * Liveness is decided here, once. A hud created while disabled stays inert
+   * for its own lifetime even if setDebug(true) is called afterwards.
+   */
+  function createPerfHud(): PerfHud {
     if (!state.enabled) {
-      this.el = null
-      return
+      return { sample: () => {} }
     }
-    this.el = document.createElement('div')
-    this.el.className = 'perf-hud'
-    document.body.appendChild(this.el)
+    const el = document.createElement('div')
+    el.className = 'perf-hud'
+    document.body.appendChild(el)
+    let frames = 0
+    let acc = 0
+    let worst = 0
+    function sample(dtMs: number, extra: () => string): void {
+      frames++
+      acc += dtMs
+      worst = Math.max(worst, dtMs)
+      if (acc < 500) return
+      const avg = acc / frames
+      el.textContent = `${avg.toFixed(1)}ms avg  ${worst.toFixed(1)}ms peak  ${(1000 / avg).toFixed(0)}fps  ${extra()}`
+      frames = 0
+      acc = 0
+      worst = 0
+    }
+    return { sample }
   }
 
-  sample(dtMs: number, extra: () => string): void {
-    if (!this.el) return
-    this.frames++
-    this.acc += dtMs
-    this.worst = Math.max(this.worst, dtMs)
-    if (this.acc < 500) return
-    const avg = this.acc / this.frames
-    this.el.textContent = `${avg.toFixed(1)}ms avg  ${this.worst.toFixed(1)}ms peak  ${(1000 / avg).toFixed(0)}fps  ${extra()}`
-    this.frames = 0
-    this.acc = 0
-    this.worst = 0
-  }
+  return { log, isDebug, setDebug, createPerfHud }
 }

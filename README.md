@@ -28,9 +28,36 @@ when asked. Every capability added here follows that shape.
 ## Layout
 
 ```
-src/log.ts   gated logging: categories, a closure per message, zero cost when off
+src/log.ts   gated logging: a factory instance per consumer, a closure per message, zero cost when off
 src/rng.ts   seeded rng - mulberry32, hashString, pick, randInt, pickWeighted
 ```
+
+`log.ts` exports `createLogger(categories, options?)` rather than a module-level
+singleton, so each game builds its own instance from its own category list and
+the two never share debug state:
+
+```ts
+import { createLogger } from '@modbender/game-kit/log'
+
+const { log, isDebug, setDebug, createPerfHud } = createLogger([
+  'sim',
+  'render',
+  'feel',
+  'audio',
+  'meta',
+  'platform',
+  'ui',
+])
+
+log('render', () => `fleet variety ${n}`)
+```
+
+`categories` is a `readonly string[]` literal — no `as const` needed, the
+generic infers the literal union so `log`'s first argument is typed to exactly
+that game's categories. `options.debugParam` and `options.categoryParam`
+rename the URL parameters an instance reads (default `debug` and `logcat`),
+for the rare case two loggers need to live on the same page without
+colliding.
 
 **`rng.ts` is behaviour-frozen.** Both games derive their levels from seed
 strings, so any change to these functions regenerates every board and
@@ -38,14 +65,19 @@ invalidates the records players already hold. Treat it as an on-disk format.
 
 ## Consuming it
 
-The games depend on it by path while it is unpublished:
-
-```json
-"@modbender/game-kit": "file:../../../js/game-kit"
+```bash
+bun add @modbender/game-kit
 ```
 
-That means a checkout of `ytgames` alone will not install. Publishing is what
-removes the coupling; until then the two directories travel together.
+Consumers pin a caret range on the minor version:
+
+```json
+"@modbender/game-kit": "^0.2.0"
+```
+
+On a 0.x version that admits patch releases only, which is the right width for
+a package holding level-generation code. Treat a minor bump as a change to
+level generation until the characterization tests say otherwise.
 
 ```bash
 bun install

@@ -1,6 +1,6 @@
 {
   "name": "@modbender/game-kit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shared layers behind small web games: a gated logger and a seeded RNG, imported by subpath.",
   "type": "module",
   "license": "MIT",
