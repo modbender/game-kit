@@ -41,7 +41,7 @@ invalidates the records players already hold. Treat it as an on-disk format.
 The games depend on it by path while it is unpublished:
 
 ```json
-"@modbender/game-kit": "file:../../../js/ts/game-kit"
+"@modbender/game-kit": "file:../../../js/game-kit"
 ```
 
 That means a checkout of `ytgames` alone will not install. Publishing is what
