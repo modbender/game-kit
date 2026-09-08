@@ -1,22 +1,48 @@
 {
   "name": "@modbender/game-kit",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Host adapters and the shared layer behind small web games.",
+  "version": "0.1.0",
+  "description": "Shared layers behind small web games: a gated logger and a seeded RNG, imported by subpath.",
   "type": "module",
   "license": "MIT",
+  "author": "modbender",
+  "homepage": "https://github.com/modbender/game-kit#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/modbender/game-kit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/modbender/game-kit/issues"
+  },
+  "keywords": [
+    "game",
+    "gamedev",
+    "logger",
+    "debug",
+    "prng",
+    "rng",
+    "mulberry32",
+    "seeded-random",
+    "deterministic"
+  ],
   "files": ["dist"],
   "exports": {
     "./log": { "types": "./dist/log.d.ts", "import": "./dist/log.js" },
     "./rng": { "types": "./dist/rng.d.ts", "import": "./dist/rng.js" }
   },
+  "sideEffects": false,
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "verify": "bun run typecheck && bun test && bun run build",
+    "prepublishOnly": "bun run verify"
   },
   "devDependencies": {
     "@types/bun": "^1.4.0",
     "typescript": "^5.6.3"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }
